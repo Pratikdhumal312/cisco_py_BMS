@@ -3,6 +3,8 @@ from app.db import db
 from app.models import Account
 from app.exceptions import AccountNotFoundError, DuplicateAccountError, InvalidAccountDataError
 from app.logger import logger
+from app.emailer import notify_account_created
+from app.config import Config
 
 def create_account(name: str, number: str, balance: float = 0.0) -> Account:
     """Create a new account"""
@@ -11,6 +13,14 @@ def create_account(name: str, number: str, balance: float = 0.0) -> Account:
         db.session.add(account)
         db.session.commit()
         logger.info("account_created", account_number=number, name=name)
+        # Notify admin/user about the new account (non-blocking)
+        try:
+            # Use configured notifications email as recipient when user email is not available
+            recipient = getattr(Config, 'NOTIFICATIONS_EMAIL', None)
+            if recipient:
+                notify_account_created(recipient, name)
+        except Exception as e:
+            logger.warning("notification_failed", error=str(e), account_number=number)
         return account
     except IntegrityError:
         db.session.rollback()

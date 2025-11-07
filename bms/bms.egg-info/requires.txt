@@ -1,0 +1,9 @@
+flask
+flask-sqlalchemy
+requests
+beautifulsoup4
+python-dotenv
+aiohttp
+asyncio
+selenium
+structlog

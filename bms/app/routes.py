@@ -3,7 +3,7 @@ from app.crud import (
     create_account, get_account, get_account_by_number,
     list_accounts, update_account, delete_account
 )
-from app.emailer import notify_account_created
+# notifications are handled by CRUD layer (app.crud) to keep behavior consistent
 from app.exceptions import (
     BMSError, AccountNotFoundError, DuplicateAccountError,
     InvalidAccountDataError
@@ -27,13 +27,6 @@ def create_new_account():
             name=data['name'],
             number=data['number'],
             balance=float(data.get('balance', 0.0))
-        )
-        
-        # Send notification email asynchronously
-        notify_account_created(
-            account_number=account.number,
-            account_name=account.name,
-            balance=float(account.balance)
         )
         
         return jsonify(account.to_dict()), 201
@@ -96,6 +89,41 @@ def remove_account(account_id):
         return jsonify({'error': str(e)}), 404
 
 # Health check endpoint
+@bp.route('/accounts/batch', methods=['POST'])
+def create_multiple_accounts():
+    """Create multiple accounts in one request"""
+    data = request.get_json()
+    if not isinstance(data, list):
+        return jsonify({'error': 'Request body must be an array of accounts'}), 400
+    
+    results = []
+    errors = []
+    
+    for idx, account_data in enumerate(data):
+        try:
+            account = create_account(
+                name=account_data['name'],
+                number=account_data['number'],
+                balance=float(account_data.get('balance', 0.0))
+            )
+            
+            results.append(account.to_dict())
+        except (KeyError, ValueError, DuplicateAccountError) as e:
+            errors.append({
+                'index': idx,
+                'data': account_data,
+                'error': str(e)
+            })
+    
+    response = {
+        'success': results,
+        'errors': errors
+    }
+    
+    # Return 201 if at least one account was created, 400 if all failed
+    status_code = 201 if results else 400
+    return jsonify(response), status_code
+
 @bp.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
